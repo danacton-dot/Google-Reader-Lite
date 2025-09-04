@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { XMLParser } from 'fast-xml-parser'
 
-export const revalidate = 0
-export const dynamic = 'force-dynamic' // avoid edge cache issues
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
+
 
 function normalizeItem(it: any, isAtom = false) {
   if (isAtom) {
