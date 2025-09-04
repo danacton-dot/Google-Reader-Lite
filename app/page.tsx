@@ -73,7 +73,12 @@ export default function Page() {
   async function loadFeed(url: string) {
     try {
       setBusy(true); setError(null)
-      const res = await fetch(`/api/fetch?url=${encodeURIComponent(url)}`)
+     const res = await fetch(`/api/fetch`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ url }),
+})
+
       if (!res.ok) throw new Error(`Fetch failed: ${res.status}`)
       const data = await res.json()
       setCurrentFeed(data as Feed)
