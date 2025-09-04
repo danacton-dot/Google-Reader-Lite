@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { XMLParser } from 'fast-xml-parser'
 
 export const revalidate = 0
+export const dynamic = 'force-dynamic' // avoid edge cache issues
 
 function normalizeItem(it: any, isAtom = false) {
   if (isAtom) {
@@ -48,8 +49,10 @@ function normalizeItem(it: any, isAtom = false) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { url } = await req.json().catch(() => ({}))
-    if (!url || typeof url !== 'string') {
+    const body = await req.json().catch(() => ({}))
+    const url = typeof body?.url === 'string' ? body.url.trim() : ''
+
+    if (!url) {
       return NextResponse.json({ error: 'Missing url' }, { status: 400 })
     }
 
@@ -58,6 +61,7 @@ export async function POST(req: NextRequest) {
       // @ts-ignore
       cache: 'no-store',
     })
+
     if (!upstream.ok) {
       return NextResponse.json(
         { error: `Upstream ${upstream.status}` },
@@ -98,5 +102,38 @@ export async function POST(req: NextRequest) {
       items = items.map((it: any) => normalizeItem(it, false))
     } else if (isAtom) {
       const feed = data.feed
+      feedTitle = feed?.title?.['#text'] || feed?.title || ''
+      siteLink =
+        typeof feed?.link === 'string'
+          ? feed.link
+          : feed?.link?.['@_href'] || feed?.link?.[0]?.['@_href'] || ''
+      const entries = Array.isArray(feed?.entry) ? feed.entry : feed?.entry ? [feed.entry] : []
+      items = entries.map((it: any) => normalizeItem(it, true))
+    } else {
+      return NextResponse.json(
+        { error: 'Unsupported feed (expect RSS/Atom)' },
+        { status: 415 }
+      )
+    }
 
-      
+    // newest first
+    items.sort(
+      (a: any, b: any) =>
+        new Date(b.published || 0).getTime() - new Date(a.published || 0).getTime()
+    )
+
+    const resp = NextResponse.json({
+      url,
+      title: feedTitle,
+      link: siteLink,
+      items,
+    })
+    resp.headers.set('Cache-Control', 'no-store')
+    return resp
+  } catch (e: any) {
+    return NextResponse.json(
+      { error: e?.message || 'Fetch error' },
+      { status: 500 }
+    )
+  }
+}
